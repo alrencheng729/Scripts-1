@@ -1,8 +1,7 @@
+
 /*
-更新时间: 2020-09-19 21:30
-
+更新时间: 2020-09-27 10:10
 腾讯新闻签到修改版，可以自动阅读文章获取红包，该活动为瓜分百万现金挑战赛，针对幸运用户参与
-
 获取Cookie方法:
 1.把以下配置复制到响应配置下
 2.打开腾讯新闻app，阅读几篇文章，倒计时结束后即可获取阅读Cookie;
@@ -16,67 +15,91 @@
 Surge 4.0
 [Script]
 腾讯新闻 = type=cron,cronexp=0 8 0 * * *,script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/txnews.js,script-update-interval=0
-
 腾讯新闻 = type=http-request,pattern=https:\/\/api\.inews\.qq\.com\/event\/v1\/user\/event\/report\?,script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/txnews.js, requires-body=true
-
 ~~~~~~~~~~~~~~~~~~~~~
 Loon 2.1.0+
 [Script]
 # 本地脚本
 cron "04 00 * * *" script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/txnews.js, enabled=true, tag=腾讯新闻
-
 http-request https:\/\/api\.inews\.qq\.com\/event\/v1\/user\/event\/report\? script-path=https://raw.githubusercontent.com/Sunert/Scripts/master/Task/txnews.js, requires-body=true
-
 -----------------
-
 QX 1.0.7+ :
  [task_local]
 0 9 * * * https://raw.githubusercontent.com/Sunert/Scripts/master/Task/txnews.js, tag=腾讯新闻
  [rewrite_local]
 https:\/\/api\.inews\.qq\.com\/event\/v1\/user\/event\/report\? url script-request-body https://raw.githubusercontent.com/Sunert/Scripts/master/Task/txnews.js
-
 ~~~~~~~~~~~~~~~~~~
  [MITM]
 hostname = api.inews.qq.com
-
 ---------------------------
-
 Cookie获取后，请注释掉Cookie地址。
-
 */
 const $ = new Env('腾讯新闻');
 const notify = $.isNode() ? require('./sendNotify') : '';
 let s = Number($.getdata('delay'))||200 // 间隔延迟时间
 let notifyInterval =$.getdata('notifynum')||50; //阅读篇数间隔通知开为1，常关为0;
 const TX_HOST = 'https://api.inews.qq.com/activity/v1/'
-
-let signurlVal = $.getdata('sy_signurl_txnews')
-let cookieVal = $.getdata( 'sy_cookie_txnews')
-let videoVal = $.getdata( 'video_txnews')
+let SignArr = [],signurlVal = "";
+    cookiesArr = [],cookieVal = "";
+    VideoArr = [],videoVal = "";
 
 if ($.isNode()) {
-  cookieVal = process.env.cookieVal;
-  signurlVal = process.env.signurlVal;
-  videoVal = process.env.videoVal
-}
+  if (process.env.TXNEWS_COOKIE && process.env.TXNEWS_COOKIE.split('&') && process.env.TXNEWS_COOKIE.split('&').length > 0) {
+  CookieTxnews = process.env.TXNEWS_COOKIE.split('&');
+  }
+ if (process.env.TXNEWS_SIGN && process.env.TXNEWS_SIGN.split('#') && process.env.TXNEWS_SIGN.split('#').length > 0) {
+  SignUrl = process.env.TXNEWS_SIGN.split('#');
+  }
+  if (process.env.TXNEWS_VIDEO && process.env.TXNEWS_VIDEO.split('#') && process.env.TXNEWS_VIDEO.split('#').length > 0) {
+  VideoUrl = process.env.TXNEWS_VIDEO.split('#');
+  };
+    Object.keys(CookieTxnews).forEach((item) => {
+        if (CookieTxnews[item]) {
+          cookiesArr.push(CookieTxnews[item])
+        }
+      })
+    Object.keys(SignUrl).forEach((item) => {
+        if (SignUrl[item]) {
+          SignArr.push(SignUrl[item])
+        }
+      })
+    Object.keys(VideoUrl).forEach((item) => {
+        if (VideoUrl[item]) {
+          VideoArr.push(VideoUrl[item])
+        }
+    })
+  } else {
+                cookiesArr.push($.getdata('sy_cookie_txnews'));
+   SignArr.push($.getdata( 'sy_signurl_txnews'));
+      VideoArr.push($.getdata( 'video_txnews'))
+  }
 
 let isGetCookie = typeof $request !== 'undefined'
 if (isGetCookie) {
   GetCookie()
 } else {
- !(async () => {
-  if(!signurlVal && !cookieVal){
-    $.msg($.name, '【提示】🉐登录腾讯新闻app获取cookie',"qqnews://article_9500?tab=news_news&from=self", {"open-url": "qqnews://article_9500?tab=news_news&from=self"})
-    await notify.sendNotify($.name, '【提示】请先获取腾讯新闻一Cookie',"qqnews://article_9500?tab=news_news&from=self", {"open-url": "qqnews://article_9500?tab=news_news&from=self"});
+!(async () => {
+ if(!cookiesArr){
+      $.msg($.name, '【提示】🉐登录腾讯新闻app获取cookie',"qqnews://article_9500?tab=news_news&from=self", {"open-url": "qqnews://article_9500?tab=news_news&from=self"});
+    if ($.isNode()){
+      await notify.sendNotify($.name, '【提示】请先获取腾讯新闻一Cookie',"qqnews://article_9500?tab=news_news&from=self", {"open-url": "qqnews://article_9500?tab=news_news&from=self"});
+     }
      return;
     }
   if ($.isNode()){
       console.log(`\n============ 脚本执行来自 Github Action  ==============\n`)
       console.log(`============ 脚本执行-国际标准时间(UTC)：${new Date().toLocaleString()}  =============\n`)
-      console.log(`============ 脚本执行-北京时间(UTC+8)：${new Date(new Date().getTime() + 8 * 60 * 60 * 1000).toLocaleString()}  =============\n`)
+      console.log(`============ 脚本执行-北京时间(UTC+8)：${new Date(new Date().getTime() + 8 * 60 * 60 * 1000).toLocaleString()}=============\n`)
+     }
+  for (let i = 0; i < cookiesArr.length; i++) {
+    if (cookiesArr[i]) {
+      cookieVal = cookiesArr[i];
+      signurlVal = SignArr[i];
+      videoVal = VideoArr[i];
+      $.index = i + 1;
+      console.log(`-------------------------\n\n开始【腾讯新闻账号${$.index}】`)
     }
-     token = signurlVal.match(/devid=[a-zA-Z0-9_-]+/g)[0]
-     console.log("-----------------------------\n\n开始获取您的活动ID");
+      token = signurlVal.match(/devid=[a-zA-Z0-9_-]+/g)[0]
       await getsign();
       await activity();
       await toRead();
@@ -92,14 +115,7 @@ if (isGetCookie) {
       };
       await getTotal();
       await showmsg();
-  if ($.isNode()){
-   if (readnum%notifyInterval==0){
-        await notify.sendNotify($.name,subTile+'\n'+detail);
-    }
-    else if (openreadred==readredtotal&&openvideored==videoredtotal){
-        await notify.sendNotify($.name+` 今日任务已完成✅`,subTile+'\n'+ detail)
-         }
-       }
+   }
   })()
       .catch((e) => $.logErr(e))
       .finally(() => $.done())
@@ -243,17 +259,17 @@ function Redpack() {
         let rcash = JSON.parse(data)
         try{
           redpacks = rcash.data.award.num/100
-          if (rcash.ret == 0&&readredpack!=0&&getreadred>0){
-            redpackres = `【阅读红包】到账`+readredpack+`元 🌷\n`
-            $.log("阅读红包到账"+readredpack+"元\n")
+          if (rcash.ret == 0&&redpacks>0&&getreadred > 0){
+            redpackres = `【阅读红包】到账`+redpacks+`元 🌷\n`
+            $.log("阅读红包到账"+redpacks+"元\n")
           }
-          else if (rcash.ret == 0&&videoredpack!=0&&getvideored>0){
-            redpackres = `【视频红包】到账`+videoredpack+`元 🌷\n`
-            $.log("视频红包到账"+videoredpack+"元\n")
+          else if (rcash.ret == 0&&redpacks>0){
+            redpackres = `【视频红包】到账`+redpacks+`元 🌷\n`
+            $.log("视频红包到账"+redpacks+"元\n")
           }
         }
-        catch(err){
-          $.log("打开红包失败,响应数据: "+ data+"\n错误代码:"+err) };
+        catch(error){
+          $.log("打开红包失败,响应数据: "+ data+"\n错误代码:"+error) };
         $.msg($.name, "开红包失败，详情请看日志 ❌", err)
         resolve()
       })
