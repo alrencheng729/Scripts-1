@@ -5,7 +5,7 @@
 #   branches: 
 #   - master 
 
-name: 腾讯新闻
+name: 腾讯新闻1
 
 on:
   workflow_dispatch:
